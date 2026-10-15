@@ -331,6 +331,10 @@ extern symbol __slide, __image_base, __image_end;
 // Some UEFI implementations cannot handle allocations spanning a large
 // fraction of physical memory. Reduce the request cap no lower than 64MiB,
 // and use 1MiB requests only to recover a failed chunk.
+#ifndef LIMINE_FIRMWARE_RESERVE_MIB
+#define LIMINE_FIRMWARE_RESERVE_MIB 64
+#endif
+
 #define UEFI_ALLOC_MAX_PAGES      ((UINTN)(0x40000000 / PAGE_SIZE))
 #define UEFI_ALLOC_MIN_PAGES      ((UINTN)(0x04000000 / PAGE_SIZE))
 #define UEFI_ALLOC_FALLBACK_PAGES ((UINTN)(0x00100000 / PAGE_SIZE))
@@ -507,8 +511,10 @@ void init_memmap(void) {
 
     allocations_disallowed = false;
 
-    // Let's leave 64MiB to the firmware below 4GiB
-    for (size_t i = 0; i < 64; i++) {
+    // Let's leave LIMINE_FIRMWARE_RESERVE_MIB (default 64) MiB to the firmware below 4GiB.
+    // OxideBSD: a build-time knob, since a system meant to boot in 64 MB of RAM can't give the
+    // firmware 64 MiB of it; this runs before limine.conf can be read.
+    for (size_t i = 0; i < LIMINE_FIRMWARE_RESERVE_MIB; i++) {
         ext_mem_alloc_type(0x100000, MEMMAP_EFI_RECLAIMABLE);
     }
 
