@@ -331,6 +331,7 @@ extern symbol __slide, __image_base, __image_end;
 // Some UEFI implementations cannot handle allocations spanning a large
 // fraction of physical memory. Reduce the request cap no lower than 64MiB,
 // and use 1MiB requests only to recover a failed chunk.
+// The least left to the firmware (OxideBSD; see init_memmap).
 #ifndef LIMINE_FIRMWARE_RESERVE_MIB
 #define LIMINE_FIRMWARE_RESERVE_MIB 64
 #endif
@@ -511,10 +512,26 @@ void init_memmap(void) {
 
     allocations_disallowed = false;
 
-    // Let's leave LIMINE_FIRMWARE_RESERVE_MIB (default 64) MiB to the firmware below 4GiB.
-    // OxideBSD: a build-time knob, since a system meant to boot in 64 MB of RAM can't give the
-    // firmware 64 MiB of it; this runs before limine.conf can be read.
-    for (size_t i = 0; i < LIMINE_FIRMWARE_RESERVE_MIB; i++) {
+    // Let's leave 64MiB to the firmware below 4GiB.
+    // OxideBSD: a machine meant to boot in 64 MB of RAM can't give the firmware 64 MiB of it,
+    // and one with plenty of RAM shouldn't give it less than upstream does: the firmware gets a
+    // sixteenth of the usable memory below 4GiB, at least LIMINE_FIRMWARE_RESERVE_MIB (a
+    // build-time define: this runs before limine.conf can be read) and at most 64MiB.
+    uint64_t usable_mib = 0;
+    for (size_t i = 0; i < memmap_entries; i++) {
+        if (memmap[i].type != MEMMAP_USABLE || memmap[i].base >= 0x100000000)
+            continue;
+        uint64_t top = memmap[i].base + memmap[i].length;
+        if (top > 0x100000000)
+            top = 0x100000000;
+        usable_mib += (top - memmap[i].base) / 0x100000;
+    }
+    size_t reserve_mib = usable_mib / 16;
+    if (reserve_mib < LIMINE_FIRMWARE_RESERVE_MIB)
+        reserve_mib = LIMINE_FIRMWARE_RESERVE_MIB;
+    if (reserve_mib > 64)
+        reserve_mib = 64;
+    for (size_t i = 0; i < reserve_mib; i++) {
         ext_mem_alloc_type(0x100000, MEMMAP_EFI_RECLAIMABLE);
     }
 
