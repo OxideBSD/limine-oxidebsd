@@ -846,6 +846,14 @@ again:
     }
 #endif
 
+    // OxideBSD: say what was wanted and what's free, so a failure at a low memory size shows
+    // whether memory ran out or only a long enough free run did.
+    print("pmm: %U bytes wanted; free runs:", (uint64_t)count);
+    for (size_t i = 0; i < memmap_entries; i++) {
+        if (memmap[i].type == MEMMAP_USABLE)
+            print(" %X+%X", memmap[i].base, memmap[i].length);
+    }
+    print("\n");
     panic(false, "High memory allocator: Out of memory");
 }
 

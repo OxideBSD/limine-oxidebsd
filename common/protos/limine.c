@@ -652,6 +652,12 @@ noreturn void limine_load(char *config, char *cmdline) {
     }
 
     uint8_t *kernel = kernel_file->fd;
+    uint64_t kernel_size = kernel_file->size;
+#if defined (__i386__)
+    bool kernel_high = kernel_file->is_high_mem;
+#else
+    bool kernel_high = false;
+#endif
 
 #if defined (UEFI)
     tpm_measure_path(TPM_PCR_BOOT_AUTH, TPM_EV_IPL, "path: ", kernel_path);
@@ -1346,6 +1352,11 @@ FEAT_END
 FEAT_START
     struct limine_executable_file_request *executable_file_request = get_request(executable_file_request, LIMINE_EXECUTABLE_FILE_REQUEST_ID);
     if (executable_file_request == NULL) {
+        // OxideBSD: nothing will read the file, its segments being loaded: its memory goes to
+        // the modules, which on a 64 MB machine under UEFI otherwise don't fit beside it.
+        if (!kernel_high) {
+            pmm_free(kernel, kernel_size);
+        }
         break; // next feature
     }
 
